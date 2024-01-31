@@ -9,6 +9,7 @@
   "private": false,
   "scripts": {
     "build": "tsc",
+    "lint": "eslint src/**/*.ts test/**/*.ts",
     "test": "jest"
   },
   "types": "dist/index.d.ts",
