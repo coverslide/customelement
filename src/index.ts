@@ -3,7 +3,7 @@ const CUSTOM_ELEMENT_REGISTRY = new Map<string, DocumentFragment>();
 class CustomElement extends HTMLElement {
   useShadow: boolean = false;
 
-  connectedCallback(): void {
+  connectedCallback (): void {
     if (this.useShadow) {
       this.attachShadow({ mode: "open" });
     }
@@ -17,7 +17,7 @@ class CustomElement extends HTMLElement {
     rootNode.appendChild(content.cloneNode(true));
   }
 
-  static register(
+  static register (
     elementClass: typeof HTMLElement,
     tag: string,
     html: string,

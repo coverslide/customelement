@@ -18,10 +18,10 @@ test("it creates the element", () => {
   CustomElement.register(
     MyElement,
     "my-element",
-    '<div><h1 class="header">It Works!</h1></div>',
+    "<div><h1 class=\"header\">It Works!</h1></div>",
   );
 
-  document.body.innerHTML = '<my-element id="custom-element"></my-element>';
+  document.body.innerHTML = "<my-element id=\"custom-element\"></my-element>";
 
   const text: string = document
     .querySelector("#custom-element")!
@@ -33,11 +33,11 @@ test("it creates the element with shadow", () => {
   CustomElement.register(
     MyShadowElement,
     "my-shadow-element",
-    '<div><h1 class="header">It Works!</h1></div>',
+    "<div><h1 class=\"header\">It Works!</h1></div>",
   );
 
   document.body.innerHTML =
-    '<my-shadow-element id="shadow-element"></my-shadow-element>';
+    "<my-shadow-element id=\"shadow-element\"></my-shadow-element>";
 
   const text = document
     .querySelector("#shadow-element")!
@@ -51,7 +51,7 @@ test("it cannot have elements share the same tag", () => {
     CustomElement.register(
       MyShadowElement,
       "my-shadow-element",
-      '<div><h1 class="header">It Works!</h1></div>',
+      "<div><h1 class=\"header\">It Works!</h1></div>",
     );
   }).toThrow();
 });
