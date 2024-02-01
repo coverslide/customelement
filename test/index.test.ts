@@ -2,9 +2,7 @@
  * @jest-environment jsdom
  */
 
-import CustomElement from "../";
-// import '@testing-library/jest-dom';
-// import {screen} from '@testing-library/dom';
+import CustomElement from "../src";
 
 class MyElement extends CustomElement {}
 
@@ -29,6 +27,7 @@ test("it creates the element", () => {
 
   expect(text).toEqual("It Works!");
 });
+
 test("it creates the element with shadow", () => {
   CustomElement.register(
     MyShadowElement,
