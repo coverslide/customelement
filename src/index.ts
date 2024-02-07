@@ -2,10 +2,16 @@ const CUSTOM_ELEMENT_REGISTRY = new Map<string, DocumentFragment>();
 
 class CustomElement extends HTMLElement {
   useShadow: boolean = false;
+  root: CustomElement | ShadowRoot;
+  constructor () {
+    super();
+    this.root = this;
+  }
 
   connectedCallback (): void {
     if (this.useShadow) {
       this.attachShadow({ mode: "open" });
+      this.root = this.shadowRoot!;
     }
     const content: DocumentFragment | undefined = CUSTOM_ELEMENT_REGISTRY.get(
       this.tagName,
@@ -13,8 +19,7 @@ class CustomElement extends HTMLElement {
     if (content === undefined) {
       throw new Error(`Tag not found: ${this.tagName}`);
     }
-    const rootNode: Node = this.useShadow ? this.shadowRoot! : this;
-    rootNode.appendChild(content.cloneNode(true));
+    this.root.appendChild(content.cloneNode(true));
   }
 
   static register (

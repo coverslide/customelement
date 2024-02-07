@@ -1,6 +1,6 @@
 {
   "name": "@cover-slide/customelement",
-  "version": "2.0.1",
+  "version": "2.1.1",
   "description": "Custom Element starter",
   "author": "Richard Hoffman <coverslide@gmail.com>",
   "license": "ISC",
@@ -10,6 +10,7 @@
   "scripts": {
     "build": "tsc",
     "lint": "eslint src/**/*.ts test/**/*.ts",
+    "fix": "eslint src/**/*.ts test/**/*.ts --fix",
     "test": "jest"
   },
   "types": "dist/index.d.ts",
