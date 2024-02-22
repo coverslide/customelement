@@ -17,7 +17,7 @@ class CustomElement extends HTMLElement {
       this.tagName,
     );
     if (content === undefined) {
-      throw new Error(`Tag not found: ${this.tagName}`);
+      return;
     }
     this.root.appendChild(content.cloneNode(true));
   }
@@ -25,15 +25,15 @@ class CustomElement extends HTMLElement {
   static register (
     elementClass: typeof HTMLElement,
     tag: string,
-    html: string,
+    html: string | null = null,
   ): void {
     const realTag = tag.toUpperCase();
-    if (CUSTOM_ELEMENT_REGISTRY.has(realTag)) {
-      throw new Error(`Tag already registered: ${tag}`);
-    }
     customElements.define(tag, elementClass);
+    if (html === null) {
+      return;
+    }
     const template: HTMLTemplateElement = document.createElement("template");
-    template.innerHTML = html;
+    template.innerHTML = html!;
     const templateContent: DocumentFragment = template.content;
     CUSTOM_ELEMENT_REGISTRY.set(realTag, templateContent);
   }

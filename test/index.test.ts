@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 
-import CustomElement from "../src";
+import CustomElement from "../src/index";
 
 class MyElement extends CustomElement {}
 
@@ -11,6 +11,8 @@ class MyShadowElement extends CustomElement {
 }
 
 class MyUnregisteredElement extends CustomElement {}
+
+class MyEmptyElement extends CustomElement {}
 
 test("it creates the element", () => {
   CustomElement.register(
@@ -52,13 +54,23 @@ test("it cannot have elements share the same tag", () => {
       "my-shadow-element",
       "<div><h1 class=\"header\">It Works!</h1></div>",
     );
-  }).toThrow();
+  }).toThrow("This name has already been registered in the registry.");
 });
 
-test("it must be registered with CustomElement", () => {
-  customElements.define("my-unregistered-element", MyUnregisteredElement);
-
+test("it cannot register the same element twice", () => {
   expect(() => {
-    document.appendChild(document.createElement("my-unregistered-element"));
-  }).toThrow();
+    CustomElement.register(
+      MyShadowElement,
+      "my-shadow-element-2",
+      "<div><h1 class=\"header\">It Works!</h1></div>",
+    );
+  }).toThrow("This constructor has already been registered in the registry.");
+});
+
+test("it can be registered with no html", () => {
+  CustomElement.register(MyEmptyElement, "new-element");
+
+  document.body.appendChild(document.createElement("new-element"));
+
+  expect(document.querySelector('new-element')!.innerHTML).toEqual("");
 });
