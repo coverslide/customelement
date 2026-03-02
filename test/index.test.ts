@@ -10,8 +10,6 @@ class MyShadowElement extends CustomElement {
   useShadow = true;
 }
 
-class MyUnregisteredElement extends CustomElement {}
-
 class MyEmptyElement extends CustomElement {}
 
 test("it creates the element", () => {
@@ -25,7 +23,7 @@ test("it creates the element", () => {
 
   const text: string = document
     .querySelector("#custom-element")!
-    .querySelector(".header")!.textContent!;
+    .querySelector(".header")!.textContent;
 
   expect(text).toEqual("It Works!");
 });
@@ -42,7 +40,7 @@ test("it creates the element with shadow", () => {
 
   const text = document
     .querySelector("#shadow-element")!
-    .shadowRoot!.querySelector(".header")!.textContent!;
+    .shadowRoot!.querySelector(".header")!.textContent;
 
   expect(text).toEqual("It Works!");
 });
@@ -72,5 +70,5 @@ test("it can be registered with no html", () => {
 
   document.body.appendChild(document.createElement("new-element"));
 
-  expect(document.querySelector('new-element')!.innerHTML).toEqual("");
+  expect(document.querySelector("new-element")!.innerHTML).toEqual("");
 });

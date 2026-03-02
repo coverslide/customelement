@@ -33,7 +33,7 @@ class CustomElement extends HTMLElement {
       return;
     }
     const template: HTMLTemplateElement = document.createElement("template");
-    template.innerHTML = html!;
+    template.innerHTML = html;
     const templateContent: DocumentFragment = template.content;
     CUSTOM_ELEMENT_REGISTRY.set(realTag, templateContent);
   }
