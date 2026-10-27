@@ -14,6 +14,24 @@ const RESERVED_TAGS = new Set([
   "missing-glyph",
 ]);
 
+const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
+
+const STANDARD_HTML_TAGS = new Set([
+  "a", "abbr", "address", "area", "article", "aside", "audio", "b", "base",
+  "bdi", "bdo", "blockquote", "body", "br", "button", "canvas", "caption",
+  "cite", "code", "col", "colgroup", "data", "datalist", "dd", "del",
+  "details", "dfn", "dialog", "div", "dl", "dt", "em", "embed", "fieldset",
+  "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5",
+  "h6", "head", "header", "hgroup", "hr", "html", "i", "iframe", "img",
+  "input", "ins", "kbd", "label", "legend", "li", "link", "main", "map",
+  "mark", "menu", "meta", "meter", "nav", "noscript", "object", "ol",
+  "optgroup", "option", "output", "p", "picture", "pre", "progress", "q",
+  "rp", "rt", "ruby", "s", "samp", "script", "search", "section", "select",
+  "slot", "small", "source", "span", "strong", "style", "sub", "summary",
+  "sup", "table", "tbody", "td", "template", "textarea", "tfoot", "th",
+  "thead", "time", "title", "tr", "track", "u", "ul", "var", "video", "wbr",
+]);
+
 export interface ElementRegistration {
   elementClass: typeof HTMLElement;
   name: string;
@@ -113,7 +131,9 @@ function prefixTemplateTags (
     }
     prefixTemplateTags(element, namespace, names);
     if (
+      element.namespaceURI === HTML_NAMESPACE &&
       names.has(element.localName) &&
+      !STANDARD_HTML_TAGS.has(element.localName) &&
       !element.localName.startsWith(`${namespace}-`)
     ) {
       renameElement(element, `${namespace}-${element.localName}`);
@@ -230,6 +250,7 @@ class CustomElement extends HTMLElement {
 
   useShadow: boolean = false;
   root: CustomElement | ShadowRoot;
+  private templateRendered: boolean = false;
 
   constructor () {
     super();
@@ -247,8 +268,13 @@ class CustomElement extends HTMLElement {
 
   connectedCallback (): void {
     if (this.useShadow) {
-      this.attachShadow({ mode: "open" });
+      if (this.shadowRoot === null) {
+        this.attachShadow({ mode: "open" });
+      }
       this.root = this.shadowRoot!;
+    }
+    if (this.templateRendered) {
+      return;
     }
     const content: DocumentFragment | undefined = CUSTOM_ELEMENT_REGISTRY.get(
       this.tagName,
@@ -257,6 +283,7 @@ class CustomElement extends HTMLElement {
       return;
     }
     this.root.appendChild(content.cloneNode(true));
+    this.templateRendered = true;
   }
 
   static tag (name: string, namespace: string = this.defaultNamespace): string {

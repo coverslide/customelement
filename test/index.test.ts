@@ -260,6 +260,79 @@ test("it builds an idempotent registrar for a package", () => {
   );
 });
 
+test("it never rewrites standard HTML tags", () => {
+  class StandardTagCard extends CustomElement {
+    static localName = "card";
+    static template = "<header id=\"standard-header\"><child></child></header>";
+  }
+  class StandardTagChild extends CustomElement {
+    static localName = "child";
+    static template = "<span>Child</span>";
+  }
+  class StandardTagHeader extends CustomElement {
+    static localName = "header";
+    static template = "<span>Custom header</span>";
+  }
+
+  CustomElement.registerElements(
+    [StandardTagCard, StandardTagChild, StandardTagHeader],
+    "standard-tags",
+  );
+
+  document.body.innerHTML = "<standard-tags-card></standard-tags-card>";
+
+  expect(
+    document.querySelector("standard-tags-card header#standard-header"),
+  ).not.toBeNull();
+  expect(
+    document.querySelector("standard-tags-card standard-tags-child span")!
+      .textContent,
+  ).toEqual("Child");
+});
+
+test("it does not duplicate template content on reconnect", () => {
+  class ReconnectElement extends CustomElement {
+    static localName = "reconnect-element";
+    static template = "<span class=\"content\">Content</span>";
+  }
+
+  CustomElement.registerElements([ReconnectElement], "reconnect-app");
+
+  const element = document.createElement(
+    "reconnect-app-reconnect-element",
+  ) as ReconnectElement;
+  document.body.appendChild(element);
+
+  expect(element.querySelectorAll(".content").length).toEqual(1);
+
+  element.remove();
+  document.body.appendChild(element);
+
+  expect(element.querySelectorAll(".content").length).toEqual(1);
+});
+
+test("it does not duplicate shadow content on reconnect", () => {
+  class ShadowReconnectElement extends CustomElement {
+    static localName = "shadow-reconnect-element";
+    static template = "<span class=\"content\">Content</span>";
+    useShadow = true;
+  }
+
+  CustomElement.registerElements([ShadowReconnectElement], "shadow-reconnect");
+
+  const element = document.createElement(
+    "shadow-reconnect-shadow-reconnect-element",
+  ) as ShadowReconnectElement;
+  document.body.appendChild(element);
+
+  expect(element.shadowRoot!.querySelectorAll(".content").length).toEqual(1);
+
+  element.remove();
+  document.body.appendChild(element);
+
+  expect(element.shadowRoot!.querySelectorAll(".content").length).toEqual(1);
+});
+
 test("it detects tag conflicts before registering", () => {
   class ConflictElement extends CustomElement {}
 

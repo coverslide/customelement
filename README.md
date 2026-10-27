@@ -85,12 +85,12 @@ class Card extends CustomElement {
 }
 
 class CardHeader extends CustomElement {
-  static localName = "header";
+  static localName = "card-header";
   static template = "<slot></slot>";
 }
 
 CustomElement.registerElements([Card, CardHeader], "myapp");
-// <myapp-card>, <myapp-header>
+// <myapp-card>, <myapp-card-header>
 ```
 
 | Namespace | `localName` | Final tag |
@@ -107,21 +107,33 @@ validated before anything is defined and must contain a hyphen.
 ### Templates and child tags
 
 Custom element tags in a registered template that match another local name in
-the same registration group are qualified automatically:
+the same registration group are qualified automatically. Standard HTML tags are
+never rewritten, even if their name matches a registered local name.
 
 ```ts
 class Card extends CustomElement {
   static localName = "card";
-  static template = "<header></header><slot></slot>";
+  static template = "<card-title></card-title><slot></slot>";
 }
 
-class CardHeader extends CustomElement {
-  static localName = "header";
+class CardTitle extends CustomElement {
+  static localName = "card-title";
   static template = "<slot></slot>";
 }
 
-CustomElement.registerElements([Card, CardHeader], "myapp");
-// template becomes <myapp-header></myapp-header><slot></slot>
+CustomElement.registerElements([Card, CardTitle], "myapp");
+// template becomes <myapp-card-title></myapp-card-title><slot></slot>
+```
+
+If a local name collides with a standard tag such as `header`, `main`, or
+`button`, the standard tag is left alone. Use the qualified tag explicitly, or
+pick a non-colliding local name:
+
+```ts
+class Card extends CustomElement {
+  static localName = "card";
+  static template = "<myapp-header></myapp-header><slot></slot>";
+}
 ```
 
 Namespacing happens when the template is registered, not when it renders. The
@@ -132,7 +144,7 @@ For child elements registered separately or later, write the qualified tag
 explicitly:
 
 ```ts
-const childTag = CustomElement.tag("header", "myapp"); // "myapp-header"
+const childTag = CustomElement.tag("card-header", "myapp"); // "myapp-card-header"
 
 CustomElement.registerElements([Card], "myapp");
 ```
@@ -145,7 +157,7 @@ class Card extends CustomElement {
 
   connectedCallback(): void {
     super.connectedCallback();
-    this.querySelectorAll(this.tag("header")); // myapp-header
+    this.querySelectorAll(this.tag("card-header")); // myapp-card-header
   }
 }
 ```
@@ -190,7 +202,7 @@ This keeps the package API consistent while avoiding name collisions.
 `conflicts` accepts either local names or element classes:
 
 ```ts
-CustomElement.conflicts(["card", "header"], "myapp");
+CustomElement.conflicts(["card", "card-header"], "myapp");
 CustomElement.conflicts([Card, CardHeader], "myapp");
 ```
 
