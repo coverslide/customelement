@@ -1,6 +1,6 @@
 {
   "name": "@coverslide/customelement",
-  "version": "2.3.1",
+  "version": "2.4.0",
   "description": "A small base class for building Web Components with declarative HTML templates",
   "author": "Richard Hoffman <coverslide@gmail.com>",
   "license": "ISC",
