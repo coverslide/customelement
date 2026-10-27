@@ -3,6 +3,7 @@
  */
 
 import CustomElement, {
+  createElementRegistrar,
   CustomElementRegistrationError,
 } from "../src/index";
 
@@ -183,6 +184,37 @@ test("it lets downstream elements join an existing namespace", () => {
   expect(
     document.querySelector("extension-app-extension span")!.textContent,
   ).toEqual("Extension");
+});
+
+test("it builds an idempotent registrar for a package", () => {
+  class RegistrarFirst extends CustomElement {}
+  class RegistrarSecond extends CustomElement {}
+
+  const register = createElementRegistrar("registrar", [
+    {
+      elementClass: RegistrarFirst,
+      name: "first",
+      html: "<span>First</span>",
+    },
+    {
+      elementClass: RegistrarSecond,
+      name: "second",
+      html: "<second></second>",
+    },
+  ]);
+
+  expect(register()).toEqual(["registrar-first", "registrar-second"]);
+  expect(register()).toEqual(["registrar-first", "registrar-second"]);
+  expect(register("other-registrar")).toEqual([
+    "other-registrar-first",
+    "other-registrar-second",
+  ]);
+
+  document.body.innerHTML = "<registrar-first></registrar-first>";
+
+  expect(document.querySelector("registrar-first span")!.textContent).toEqual(
+    "First",
+  );
 });
 
 test("it detects tag conflicts before registering", () => {

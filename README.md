@@ -134,27 +134,35 @@ Pass `""` explicitly to register without a namespace.
 > Library code should pass an explicit namespace (including `""`) when a
 > default namespace should not affect its tag names.
 
-Packages that expose several elements should give their registration helper an
-explicit default and accept an override:
+Packages that expose several elements should export a function named
+`registerElements` using the shared `RegisterElements` signature, with an
+explicit default namespace and an override:
 
 ```ts
-export function registerCardElements(namespace: string = "card"): string[] {
-  return CustomElement.registerAll(
-    [
-      { elementClass: Card, name: "card", html: "<slot></slot>" },
-      { elementClass: CardHeader, name: "header", html: "<slot></slot>" },
-    ],
-    namespace,
-  );
-}
+import { createElementRegistrar } from "@coverslide/customelement";
+
+export const registerElements = createElementRegistrar("card", [
+  { elementClass: Card, name: "card", html: "<slot></slot>" },
+  { elementClass: CardHeader, name: "header", html: "<slot></slot>" },
+]);
 ```
 
-Callers can then align a downstream package with the rest of the application by
-passing the same namespace:
+The registrar uses `"card"` as its default namespace, accepts a namespace
+override, and is idempotent per namespace.
+
+Consumers can alias the common name when importing multiple element packages:
 
 ```ts
-registerCardElements("myapp"); // myapp-card, myapp-header
+import { registerElements as registerCardElements } from "@coverslide/customelement-card";
+import { registerElements as registerRouterElements } from "@coverslide/customelement-router";
+
+registerCardElements("myapp");
+registerRouterElements("myapp");
 ```
+
+Packages can keep a package-specific alias such as `registerRouterElements` for
+backwards compatibility, but new code should import `registerElements` and alias
+it at the call site.
 
 Check for conflicts before registering:
 
@@ -184,6 +192,22 @@ error's `conflicts` property lists the offending tag names.
 | `static tag(name, namespace?)` | Qualifies `name` with `namespace` (or the default namespace). |
 | `static conflicts(names, namespace?)` | Returns qualified tag names that are already registered or duplicated in the list. |
 | `static register` / `registerAll` | Throw `CustomElementRegistrationError` (with a `conflicts` array) when a tag or class is already registered. |
+
+### `type RegisterElements`
+
+```ts
+type RegisterElements = (namespace?: string) => void;
+```
+
+The shared signature for package registration helpers. Packages should export
+their helper as `registerElements`; consumers alias it at the import site when
+using more than one package.
+
+### `createElementRegistrar(defaultNamespace, registrations)`
+
+Builds a standard `registerElements` function for a package. The returned
+function uses `defaultNamespace` unless a namespace is passed, and repeated
+calls for the same namespace return the already-registered tag names.
 
 `register` also validates the final tag name before defining anything. Custom
 element names must be lowercase, start with a letter, and contain a hyphen.

@@ -20,6 +20,40 @@ export interface ElementRegistration {
   html?: string | null;
 }
 
+/**
+ * Common registration signature for packages that provide custom elements.
+ *
+ * Packages should export a function named `registerElements` with this
+ * signature. Consumers can alias it when importing more than one package:
+ *
+ * ```ts
+ * import { registerElements as registerRouterElements } from "@coverslide/customelement-router";
+ * ```
+ */
+export type RegisterElements = (namespace?: string) => void;
+
+/**
+ * Builds the standard `registerElements` helper for a package.
+ *
+ * The returned function has a default namespace, supports an explicit override,
+ * and is idempotent per namespace.
+ */
+export function createElementRegistrar (
+  defaultNamespace: string,
+  registrations: ElementRegistration[],
+): (namespace?: string) => string[] {
+  const registered = new Map<string, string[]>();
+  return (namespace: string = defaultNamespace): string[] => {
+    const existing = registered.get(namespace);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const tags = CustomElement.registerAll(registrations, namespace);
+    registered.set(namespace, tags);
+    return tags;
+  };
+}
+
 export class CustomElementRegistrationError extends Error {
   readonly conflicts: string[];
 
