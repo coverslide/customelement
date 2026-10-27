@@ -1,12 +1,19 @@
 {
-  "name": "@cover-slide/customelement",
-  "version": "2.3.0",
-  "description": "Custom Element starter",
+  "name": "@coverslide/customelement",
+  "version": "2.3.1",
+  "description": "A small base class for building Web Components with declarative HTML templates",
   "author": "Richard Hoffman <coverslide@gmail.com>",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/coverslide/customelement.git"
+  },
   "main": "dist/index.js",
   "type": "module",
   "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
     "lint": "eslint src/**/*.ts test/**/*.ts",
@@ -14,8 +21,14 @@
     "test": "jest"
   },
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "files": [
-    "/dist"
+    "dist"
   ],
   "devDependencies": {
     "@types/jest": "^30.0.0",
