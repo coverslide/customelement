@@ -186,22 +186,65 @@ test("it lets downstream elements join an existing namespace", () => {
   ).toEqual("Extension");
 });
 
-test("it builds an idempotent registrar for a package", () => {
-  class RegistrarFirst extends CustomElement {}
-  class RegistrarSecond extends CustomElement {}
+test("it registers classes with static metadata", () => {
+  class StaticElement extends CustomElement {
+    static localName = "static-card";
+    static template = "<p class=\"static\">Static</p>";
+  }
 
-  const register = createElementRegistrar("registrar", [
-    {
-      elementClass: RegistrarFirst,
-      name: "first",
-      html: "<span>First</span>",
-    },
-    {
-      elementClass: RegistrarSecond,
-      name: "second",
-      html: "<second></second>",
-    },
-  ]);
+  const tags = CustomElement.registerElements([StaticElement], "static-app");
+
+  expect(tags).toEqual(["static-app-static-card"]);
+
+  document.body.innerHTML = "<static-app-static-card></static-app-static-card>";
+
+  expect(document.querySelector("static-app-static-card .static")!.textContent)
+    .toEqual("Static");
+});
+
+test("it requires a static localName", () => {
+  class MissingNameElement extends CustomElement {
+    static template = "<p>Missing name</p>";
+  }
+
+  expect(() => {
+    CustomElement.registerElements([MissingNameElement], "missing-name");
+  }).toThrow(TypeError);
+});
+
+test("it detects class conflicts before registering", () => {
+  class FirstConflictElement extends CustomElement {
+    static localName = "thing";
+  }
+  class SecondConflictElement extends CustomElement {
+    static localName = "thing";
+  }
+
+  CustomElement.registerElements([FirstConflictElement], "class-conflict");
+
+  expect(
+    CustomElement.conflicts([FirstConflictElement], "class-conflict"),
+  ).toEqual(["class-conflict-thing"]);
+
+  expect(() => {
+    CustomElement.registerElements([SecondConflictElement], "class-conflict");
+  }).toThrow(CustomElementRegistrationError);
+});
+
+test("it builds an idempotent registrar for a package", () => {
+  class RegistrarFirst extends CustomElement {
+    static localName = "first";
+    static template = "<span>First</span>";
+  }
+  class RegistrarSecond extends CustomElement {
+    static localName = "second";
+    static template = "<second></second>";
+  }
+
+  const register = createElementRegistrar(
+    "registrar",
+    [RegistrarFirst, RegistrarSecond],
+  );
 
   expect(register()).toEqual(["registrar-first", "registrar-second"]);
   expect(register()).toEqual(["registrar-first", "registrar-second"]);

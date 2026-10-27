@@ -1,9 +1,11 @@
 # @coverslide/customelement
 
-A tiny base class for building Web Components with declarative HTML templates.
+A small base class for building Web Components with declarative HTML templates
+and optional element namespaces.
 
-Define a custom element, give it a tag name and some optional HTML, and the
-markup is cloned into the element (or its shadow root) when it connects.
+A custom element class declares its local tag name and template as static
+properties. Registering a group of classes applies a namespace to every tag and
+prefixes matching tags inside the templates.
 
 ## Installation
 
@@ -14,12 +16,15 @@ npm install @coverslide/customelement
 This package is ESM-only and targets the browser. It requires a DOM
 (`HTMLElement`, `customElements`, `document`).
 
-## Usage
+## Quick start
 
 ```ts
 import CustomElement from "@coverslide/customelement";
 
 class MyElement extends CustomElement {
+  static localName = "my-element";
+  static template = "<div><h1>It works!</h1><button>Click me</button></div>";
+
   connectedCallback(): void {
     super.connectedCallback();
 
@@ -29,11 +34,7 @@ class MyElement extends CustomElement {
   }
 }
 
-CustomElement.register(
-  MyElement,
-  "my-element",
-  "<div><h1>It works!</h1><button>Click me</button></div>",
-);
+CustomElement.registerElements([MyElement]);
 ```
 
 Then use the element in your HTML:
@@ -42,138 +43,216 @@ Then use the element in your HTML:
 <my-element></my-element>
 ```
 
-### Shadow DOM
+`localName` is the unqualified name. `registerElements` combines it with a
+namespace. With no namespace, the local name must already be a valid custom
+element name, meaning it must contain a hyphen.
 
-Set `useShadow` to `true` on your subclass to render the template into a shadow
-root instead of the light DOM. `this.root` will point at the shadow root.
+## Namespaces
 
-```ts
-class MyShadowElement extends CustomElement {
-  useShadow = true;
-}
-
-CustomElement.register(
-  MyShadowElement,
-  "my-shadow-element",
-  "<h1>Inside the shadow root</h1>",
-);
-```
-
-### Registering without a template
-
-The HTML argument is optional. Omit it (or pass `null`) when you want to build
-the element's content yourself.
+Pass a namespace to qualify every tag in a registration group:
 
 ```ts
-class EmptyElement extends CustomElement {}
-
-CustomElement.register(EmptyElement, "empty-element");
+CustomElement.registerElements([MyElement], "myapp");
+// defines <myapp-my-element>
 ```
 
-### Namespacing
-
-Register related elements under a namespace so multiple applications or
-versions can coexist on the same page:
-
-```ts
-import CustomElement from "@coverslide/customelement";
-
-class Card extends CustomElement {}
-class CardHeader extends CustomElement {}
-
-CustomElement.registerAll(
-  [
-    {
-      elementClass: Card,
-      name: "card",
-      html: "<card-header></card-header><slot></slot>",
-    },
-    {
-      elementClass: CardHeader,
-      name: "card-header",
-      html: "<slot></slot>",
-    },
-  ],
-  "myapp",
-);
-```
-
-This defines `<myapp-card>` and `<myapp-card-header>`. Custom element tags inside
-a registered template that match another name in the same batch are prefixed
-automatically, so `<card-header>` becomes `<myapp-card-header>`.
-
-Namespacing happens when the template is registered, not when it is rendered.
-The stored fragment already contains the qualified tags, and registering the
-same class in another namespace creates a separately namespaced template for
-that registration. There is no `{namespace}` string substitution; write the
-ordinary local tag names in `html`, or use explicit qualified tags if the child
-is registered separately. For runtime lookups, use `this.tag(name)`.
-
-Inside an element, use `this.tag(name)` to resolve a name in that element's
-namespace, and `this.namespace` to read the namespace:
-
-```ts
-class Card extends CustomElement {
-  connectedCallback(): void {
-    super.connectedCallback();
-    this.querySelectorAll(this.tag("card-header"));
-  }
-}
-```
-
-Set a default namespace once instead of passing it to every registration:
+Set a default namespace once instead of passing it repeatedly:
 
 ```ts
 CustomElement.defaultNamespace = "myapp";
 
-CustomElement.register(Card, "card", "<slot></slot>"); // myapp-card
+CustomElement.registerElements([MyElement]);
+// defines <myapp-my-element>
 ```
 
-Pass `""` explicitly to register without a namespace.
+Pass `""` explicitly to opt out for one call.
 
-> Library code should pass an explicit namespace (including `""`) when a
-> default namespace should not affect its tag names.
+### How tags are named
 
-Packages that expose several elements should export a function named
-`registerElements` using the shared `RegisterElements` signature, with an
-explicit default namespace and an override:
+The final tag is:
+
+```text
+${namespace}-${localName}    when namespace is not empty
+${localName}                 when namespace is empty
+```
+
+A class always declares the unqualified name:
+
+```ts
+class Card extends CustomElement {
+  static localName = "card";
+  static template = "<slot></slot>";
+}
+
+class CardHeader extends CustomElement {
+  static localName = "header";
+  static template = "<slot></slot>";
+}
+
+CustomElement.registerElements([Card, CardHeader], "myapp");
+// <myapp-card>, <myapp-header>
+```
+
+| Namespace | `localName` | Final tag |
+| --- | --- | --- |
+| `""` | `"my-element"` | `<my-element>` |
+| `"myapp"` | `"card"` | `<myapp-card>` |
+| `"router"` | `"router"` | `<router-router>` |
+
+Use `localName`, not `name`. JavaScript reserves `name` for the class name, and
+TypeScript rejects a static property named `name`. Do not include the namespace
+in `localName`; the registry joins the two with a hyphen. The final tag is
+validated before anything is defined and must contain a hyphen.
+
+### Templates and child tags
+
+Custom element tags in a registered template that match another local name in
+the same registration group are qualified automatically:
+
+```ts
+class Card extends CustomElement {
+  static localName = "card";
+  static template = "<header></header><slot></slot>";
+}
+
+class CardHeader extends CustomElement {
+  static localName = "header";
+  static template = "<slot></slot>";
+}
+
+CustomElement.registerElements([Card, CardHeader], "myapp");
+// template becomes <myapp-header></myapp-header><slot></slot>
+```
+
+Namespacing happens when the template is registered, not when it renders. The
+stored fragment already contains the qualified tags. Registering the same
+classes in another namespace creates separately namespaced templates.
+
+For child elements registered separately or later, write the qualified tag
+explicitly:
+
+```ts
+const childTag = CustomElement.tag("header", "myapp"); // "myapp-header"
+
+CustomElement.registerElements([Card], "myapp");
+```
+
+Or resolve it at runtime from inside the element:
+
+```ts
+class Card extends CustomElement {
+  static localName = "card";
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    this.querySelectorAll(this.tag("header")); // myapp-header
+  }
+}
+```
+
+`this.namespace` returns the namespace the element was registered in.
+
+## Registering a package of elements
+
+Packages should export a helper named `registerElements` with the shared
+`RegisterElements` signature. The `createElementRegistrar` helper builds one:
 
 ```ts
 import { createElementRegistrar } from "@coverslide/customelement";
 
-export const registerElements = createElementRegistrar("card", [
-  { elementClass: Card, name: "card", html: "<slot></slot>" },
-  { elementClass: CardHeader, name: "header", html: "<slot></slot>" },
-]);
+export const registerElements = createElementRegistrar(
+  "card",
+  [Card, CardHeader],
+);
 ```
 
-The registrar uses `"card"` as its default namespace, accepts a namespace
-override, and is idempotent per namespace.
+The first argument is the package's default namespace. The returned function:
 
-Consumers can alias the common name when importing multiple element packages:
+- accepts an optional namespace override
+- is idempotent per namespace
+- returns the qualified tag names
+
+Consumers alias the common name when using more than one element package:
 
 ```ts
 import { registerElements as registerCardElements } from "@coverslide/customelement-card";
-import { registerElements as registerRouterElements } from "@coverslide/customelement-router";
+import { registerElements as registerTabsElements } from "@coverslide/customelement-tabs";
 
 registerCardElements("myapp");
-registerRouterElements("myapp");
+registerTabsElements("myapp");
 ```
 
-Packages can keep a package-specific alias such as `registerRouterElements` for
-backwards compatibility, but new code should import `registerElements` and alias
-it at the call site.
+Packages should expose only `registerElements`; consumers choose the local alias.
+This keeps the package API consistent while avoiding name collisions.
 
-Check for conflicts before registering:
+## Conflict detection
+
+`conflicts` accepts either local names or element classes:
 
 ```ts
-CustomElement.conflicts(["card"], "myapp");
-// ["myapp-card"] when the tag is already registered
+CustomElement.conflicts(["card", "header"], "myapp");
+CustomElement.conflicts([Card, CardHeader], "myapp");
 ```
 
-`register` and `registerAll` throw a `CustomElementRegistrationError` before
-defining anything, so a conflicting batch is never partially registered. The
-error's `conflicts` property lists the offending tag names.
+It returns the qualified tags that are already registered, or that appear more
+than once in the list.
+
+Registration is atomic. `registerElements` checks every tag before defining
+anything and throws `CustomElementRegistrationError` when there is a conflict:
+
+```ts
+try {
+  CustomElement.registerElements([Card, CardHeader], "myapp");
+} catch (error) {
+  if (error instanceof CustomElementRegistrationError) {
+    console.error(error.conflicts); // ["myapp-card"]
+  }
+}
+```
+
+The same class can be registered under multiple namespaces. A per-namespace
+subclass is created automatically, as required by the custom elements
+specification.
+
+## Shadow DOM
+
+Set `useShadow` to `true` to render the template into a shadow root instead of
+the light DOM. `this.root` points at the shadow root.
+
+```ts
+class MyShadowElement extends CustomElement {
+  static localName = "my-shadow-element";
+  static template = "<h1>Inside the shadow root</h1>";
+  useShadow = true;
+}
+```
+
+## Elements without a template
+
+Omit `template`, or set it to `null`, when the element builds its own content:
+
+```ts
+class EmptyElement extends CustomElement {
+  static localName = "empty-element";
+}
+```
+
+## Legacy registration API
+
+The 2.x APIs remain available for compatibility, but new code should use static
+metadata and `registerElements`.
+
+```ts
+// Deprecated
+CustomElement.register(MyElement, "my-element", "<p>Hello</p>");
+CustomElement.registerAll([
+  { elementClass: First, name: "first", html: "<slot></slot>" },
+  { elementClass: Second, name: "second", html: "<slot></slot>" },
+]);
+```
+
+These accept an explicit local name and template. They follow the same namespace
+and conflict rules.
 
 ## API
 
@@ -181,17 +260,25 @@ error's `conflicts` property lists the offending tag names.
 
 | Member | Description |
 | --- | --- |
-| `useShadow: boolean` | Defaults to `false`. When `true`, a shadow root is attached on connect and `root` points at it. Set this on your subclass before the element connects. |
-| `root: CustomElement \| ShadowRoot` | Where registered template content is appended. Points at the element itself unless `useShadow` is enabled. Query this rather than `this` if you want to support both modes. |
+| `static localName: string \| null` | Unqualified tag name. Required by `registerElements`. |
+| `static template: string \| null` | HTML cloned into the element on connect. `null` means no template. |
+| `static defaultNamespace: string` | Namespace used when a registration or lookup omits one. Defaults to `""`. |
+| `static registerElements(classes, namespace?)` | Registers classes using their static metadata. Returns the qualified tag names. |
+| `static conflicts(namesOrClasses, namespace?)` | Returns qualified tags that are already registered or duplicated. |
+| `static tag(name, namespace?)` | Qualifies `name` with `namespace` or the default namespace. |
+| `static register(...)` | Deprecated 2.x registration with an explicit name/template. |
+| `static registerAll(...)` | Deprecated 2.x batch registration with explicit names/templates. |
+| `useShadow: boolean` | Defaults to `false`. Attaches a shadow root and points `root` at it when `true`. |
+| `root: CustomElement \| ShadowRoot` | Where registered template content is appended. |
 | `namespace: string` | The namespace this element was registered in. |
 | `tag(name: string): string` | Qualifies `name` with this element's namespace. |
-| `connectedCallback(): void` | Attaches the shadow root (when requested) and clones the registered template into `root`. Call `super.connectedCallback()` when overriding, otherwise the template will not render. |
-| `static defaultNamespace: string` | Namespace used when a registration or lookup omits one. Defaults to `""`. |
-| `static register(elementClass, name, html?, namespace?)` | Defines the element and stores `html` as its template. Returns the qualified tag name. `html` may be a string, `null`, or omitted. |
-| `static registerAll(registrations, namespace?)` | Registers a batch atomically. Each registration has `elementClass`, `name`, and optional `html`. Returns the qualified tag names. |
-| `static tag(name, namespace?)` | Qualifies `name` with `namespace` (or the default namespace). |
-| `static conflicts(names, namespace?)` | Returns qualified tag names that are already registered or duplicated in the list. |
-| `static register` / `registerAll` | Throw `CustomElementRegistrationError` (with a `conflicts` array) when a tag or class is already registered. |
+| `connectedCallback(): void` | Attaches the shadow root when requested and clones the registered template into `root`. Call `super.connectedCallback()` when overriding. |
+
+### `createElementRegistrar(defaultNamespace, classes)`
+
+Builds a standard package `registerElements` function. The returned function
+uses `defaultNamespace` unless a namespace is passed, and repeated calls for the
+same namespace return the already-registered tag names.
 
 ### `type RegisterElements`
 
@@ -199,18 +286,12 @@ error's `conflicts` property lists the offending tag names.
 type RegisterElements = (namespace?: string) => void;
 ```
 
-The shared signature for package registration helpers. Packages should export
-their helper as `registerElements`; consumers alias it at the import site when
-using more than one package.
+The shared signature for package registration helpers.
 
-### `createElementRegistrar(defaultNamespace, registrations)`
+### `CustomElementRegistrationError`
 
-Builds a standard `registerElements` function for a package. The returned
-function uses `defaultNamespace` unless a namespace is passed, and repeated
-calls for the same namespace return the already-registered tag names.
-
-`register` also validates the final tag name before defining anything. Custom
-element names must be lowercase, start with a letter, and contain a hyphen.
+Thrown before anything is defined when a registration has conflicts. The
+`conflicts` property contains the qualified tag names.
 
 ## TypeScript
 
@@ -227,16 +308,6 @@ requires the DOM library in your `tsconfig.json`:
 
 Because the package is ESM-only, import it with `import` rather than `require`.
 It works with `moduleResolution` set to `bundler`, `node16`, or `nodenext`.
-
-```ts
-import CustomElement from "@coverslide/customelement";
-
-class Greeting extends CustomElement {
-  useShadow = true;
-}
-
-CustomElement.register(Greeting, "my-greeting", "<p>Hello</p>");
-```
 
 ## Development
 

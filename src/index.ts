@@ -20,6 +20,8 @@ export interface ElementRegistration {
   html?: string | null;
 }
 
+export type CustomElementClass = typeof CustomElement;
+
 /**
  * Common registration signature for packages that provide custom elements.
  *
@@ -27,32 +29,10 @@ export interface ElementRegistration {
  * signature. Consumers can alias it when importing more than one package:
  *
  * ```ts
- * import { registerElements as registerRouterElements } from "@coverslide/customelement-router";
+ * import { registerElements as registerCardElements } from "@coverslide/customelement-card";
  * ```
  */
 export type RegisterElements = (namespace?: string) => void;
-
-/**
- * Builds the standard `registerElements` helper for a package.
- *
- * The returned function has a default namespace, supports an explicit override,
- * and is idempotent per namespace.
- */
-export function createElementRegistrar (
-  defaultNamespace: string,
-  registrations: ElementRegistration[],
-): (namespace?: string) => string[] {
-  const registered = new Map<string, string[]>();
-  return (namespace: string = defaultNamespace): string[] => {
-    const existing = registered.get(namespace);
-    if (existing !== undefined) {
-      return existing;
-    }
-    const tags = CustomElement.registerAll(registrations, namespace);
-    registered.set(namespace, tags);
-    return tags;
-  };
-}
 
 export class CustomElementRegistrationError extends Error {
   readonly conflicts: string[];
@@ -141,8 +121,112 @@ function prefixTemplateTags (
   }
 }
 
+function getStaticRegistration (
+  elementClass: CustomElementClass,
+): ElementRegistration {
+  const name = elementClass.localName;
+  if (typeof name !== "string" || name === "") {
+    throw new TypeError(
+      `Custom element class ${elementClass.name || "(anonymous)"} must define ` +
+      "a static localName.",
+    );
+  }
+  return {
+    elementClass,
+    name,
+    html: elementClass.template ?? null,
+  };
+}
+
+function registerDefinitions (
+  registrations: ElementRegistration[],
+  namespace: string,
+): string[] {
+  const tags = registrations.map(({ name }) => qualifyTag(name, namespace));
+  for (const tag of tags) {
+    assertValidTag(tag);
+  }
+
+  const conflicts = findConflicts(tags);
+  if (conflicts.length > 0) {
+    throw new CustomElementRegistrationError(namespace, conflicts);
+  }
+
+  const classes = new Set<typeof HTMLElement>();
+  const definitionClasses = registrations.map(({ elementClass }) => {
+    const definitionClass = CUSTOM_ELEMENT_CLASSES.has(elementClass) ||
+      classes.has(elementClass)
+      ? class extends elementClass {}
+      : elementClass;
+    classes.add(elementClass);
+    classes.add(definitionClass);
+    return definitionClass;
+  });
+
+  const localNames = new Set(registrations.map(({ name }) => name));
+  for (const name of NAMESPACE_NAMES.get(namespace) ?? []) {
+    localNames.add(name);
+  }
+
+  const templates = registrations.map(({ html }) => {
+    if (html === null || html === undefined) {
+      return null;
+    }
+    const template = document.createElement("template");
+    template.innerHTML = html;
+    prefixTemplateTags(template.content, namespace, localNames);
+    return template.content;
+  });
+
+  for (const [index, registration] of registrations.entries()) {
+    const tag = tags[index];
+    const definitionClass = definitionClasses[index];
+    customElements.define(tag, definitionClass);
+    CUSTOM_ELEMENT_CLASSES.add(definitionClass);
+    CUSTOM_ELEMENT_NAMESPACES.set(tag.toUpperCase(), namespace);
+    const template = templates[index];
+    if (template !== null) {
+      CUSTOM_ELEMENT_REGISTRY.set(tag.toUpperCase(), template);
+    }
+    const names = NAMESPACE_NAMES.get(namespace) ?? new Set<string>();
+    names.add(registration.name);
+    NAMESPACE_NAMES.set(namespace, names);
+  }
+
+  return tags;
+}
+
+/**
+ * Builds the standard `registerElements` helper for a package.
+ *
+ * Classes must define static `localName` and `template` properties. The
+ * returned function has a default namespace, supports an explicit override, and
+ * is idempotent per namespace.
+ */
+export function createElementRegistrar (
+  defaultNamespace: string,
+  elementClasses: CustomElementClass[],
+): (namespace?: string) => string[] {
+  const registered = new Map<string, string[]>();
+  return (namespace: string = defaultNamespace): string[] => {
+    const existing = registered.get(namespace);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const tags = CustomElement.registerElements(elementClasses, namespace);
+    registered.set(namespace, tags);
+    return tags;
+  };
+}
+
 class CustomElement extends HTMLElement {
   static defaultNamespace = "";
+
+  /** Local tag name without the namespace. Required by `registerElements`. */
+  static localName: string | null = null;
+
+  /** Template cloned into the element on connect. `null` means no template. */
+  static template: string | null = null;
 
   useShadow: boolean = false;
   root: CustomElement | ShadowRoot;
@@ -181,79 +265,57 @@ class CustomElement extends HTMLElement {
 
   static conflicts (
     names: string[],
+    namespace?: string,
+  ): string[];
+  static conflicts (
+    elementClasses: CustomElementClass[],
+    namespace?: string,
+  ): string[];
+  static conflicts (
+    targets: string[] | CustomElementClass[],
     namespace: string = this.defaultNamespace,
   ): string[] {
+    const names = targets.map((target) =>
+      typeof target === "string" ? target : getStaticRegistration(target).name
+    );
     return findConflicts(names.map((name) => qualifyTag(name, namespace)));
   }
 
+  static registerElements (
+    elementClasses: CustomElementClass[],
+    namespace: string = this.defaultNamespace,
+  ): string[] {
+    return registerDefinitions(
+      elementClasses.map((elementClass) => getStaticRegistration(elementClass)),
+      namespace,
+    );
+  }
+
+  /**
+   * @deprecated Define static `localName` and `template` on the class and use
+   * `registerElements()` instead.
+   */
   static register (
     elementClass: typeof HTMLElement,
     name: string,
     html: string | null = null,
     namespace: string = this.defaultNamespace,
   ): string {
-    return CustomElement.registerAll(
+    return registerDefinitions(
       [{ elementClass, name, html }],
       namespace,
     )[0];
   }
 
+  /**
+   * @deprecated Define static `localName` and `template` on the classes and
+   * use `registerElements()` instead.
+   */
   static registerAll (
     registrations: ElementRegistration[],
     namespace: string = this.defaultNamespace,
   ): string[] {
-    const tags = registrations.map(({ name }) => qualifyTag(name, namespace));
-    for (const tag of tags) {
-      assertValidTag(tag);
-    }
-
-    const conflicts = findConflicts(tags);
-    if (conflicts.length > 0) {
-      throw new CustomElementRegistrationError(namespace, conflicts);
-    }
-
-    const classes = new Set<typeof HTMLElement>();
-    const definitionClasses = registrations.map(({ elementClass }) => {
-      const definitionClass = CUSTOM_ELEMENT_CLASSES.has(elementClass) ||
-        classes.has(elementClass)
-        ? class extends elementClass {}
-        : elementClass;
-      classes.add(elementClass);
-      classes.add(definitionClass);
-      return definitionClass;
-    });
-
-    const localNames = new Set(registrations.map(({ name }) => name));
-    for (const name of NAMESPACE_NAMES.get(namespace) ?? []) {
-      localNames.add(name);
-    }
-
-    const templates = registrations.map(({ html }) => {
-      if (html === null || html === undefined) {
-        return null;
-      }
-      const template = document.createElement("template");
-      template.innerHTML = html;
-      prefixTemplateTags(template.content, namespace, localNames);
-      return template.content;
-    });
-
-    for (const [index, registration] of registrations.entries()) {
-      const tag = tags[index];
-      const definitionClass = definitionClasses[index];
-      customElements.define(tag, definitionClass);
-      CUSTOM_ELEMENT_CLASSES.add(definitionClass);
-      CUSTOM_ELEMENT_NAMESPACES.set(tag.toUpperCase(), namespace);
-      const template = templates[index];
-      if (template !== null) {
-        CUSTOM_ELEMENT_REGISTRY.set(tag.toUpperCase(), template);
-      }
-      const names = NAMESPACE_NAMES.get(namespace) ?? new Set<string>();
-      names.add(registration.name);
-      NAMESPACE_NAMES.set(namespace, names);
-    }
-
-    return tags;
+    return registerDefinitions(registrations, namespace);
   }
 }
 
